@@ -105,7 +105,26 @@ class CPU:
         self.reg[7] += 1
 
         # Re-enable interrupts
-        self.disable_interrupt = False
+        self.allow_interrupt = True
+
+    def ext_interrupt(self):
+        self.allow_interrupt = False
+        # Clear bit in IS register
+        self.reg[6] = 0
+        # Push pc, fl, registers onto stack
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], self.pc)
+
+        self.reg[7] -= 1
+        self.ram_write(self.reg[7], self.fl)
+
+        for i in range(7):
+            self.reg[7] -= 1
+            self.ram_write(self.reg[7], self.reg[i])
+            
+        # Set pc to handler address
+        self.pc = self.ram_read(0xF8) 
+        # Interrupt handler in interrupt vector table at address 0xF8
 
     def exec(self, instruction, a=None, b=None):
         # set up branch table
@@ -215,27 +234,10 @@ class CPU:
                     interrupt_happened = ((masked_interrupts >> i) & 1) == 1
 
                     if interrupt_happened:
-                        self.disable_interrupt = True
-                        # Clear bit in IS register
-                        self.reg[6] = 0
-                        # Push pc, fl, registers onto stack
-                        self.reg[7] -= 1
-                        self.ram_write(self.reg[7], self.pc)
-
-                        self.reg[7] -= 1
-                        self.ram_write(self.reg[7], self.fl)
-
-                        for i in range(7):
-                            self.reg[7] -= 1
-                            self.ram_write(self.reg[7], self.reg[i])
-                            
-                        # Set pc to handler address
-                        self.pc = self.ram_read(0xF8) 
-                        # Interrupt handler in interrupt vector table at address 0xF8
+                        self.ext_interrupt()
 
                         ir = self.ram_read(self.pc)
 
-                        # read bytes at PC+1 and PC+2 in case instruction needs them
                         operand_a = self.ram_read(self.pc + 1)
                         operand_b = self.ram_read(self.pc + 2)
 
